@@ -5,6 +5,12 @@ void handleUpload();
 void handlingEndTFT(bool hit);
 void showStartSimulationScreen();
 void simulateMissileFlight();
+bool outOfBounds();
+bool hitTarget();
+void launchSound();
+void hitObstacleSound();
+void hitTargetSound();
+void missTargetSound();
 
 #define BALLISTIC 0
 #define POWERED 1
@@ -12,7 +18,7 @@ void simulateMissileFlight();
 typedef struct Missile {
   bool type;        // "ballistic" or "powered"
   int launchSpeed;  // Launch speed in m/s
-  int launchAngle;  // Launch angle in degrees
+  float launchAngle;  // Launch angle in degrees
   float posX;         // Current X position
   float posY;         // Current Y position
   float velX;         // Current horizontal velocity
@@ -36,4 +42,5 @@ typedef struct Target {
   float posY;         // Current Y position
   float velX;         // Current horizontal velocity
   float velY;         // Current vertical velocity
+  int radius;
 } Target;

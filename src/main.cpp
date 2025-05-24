@@ -184,20 +184,22 @@ void showStartSimulationScreen() {
   tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
 
   // Target (blue circle)
-  target.posX = tft.width() - 25;
-  target.posY = 25;
-  tft.fillCircle(target.posX, target.posY, 25, ILI9341_BLUE);
+  target.radius = 25;
+  target.posX = tft.width() - target.radius;
+  target.posY = target.radius;
+  tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
 void simulateMissileFlight() {
   float dx = target.posX - missile.posX;
 
   int travelTime = map(missile.launchSpeed, 1, 100, 60, 20);  // seconds
-  int totalFrames = travelTime*10;
+  float framesPerSec = 10;
+  int totalFrames = travelTime*framesPerSec;
   float dxPerFrame = dx / totalFrames;
+  float start_time = millis();
 
   for (int i = 0; i < totalFrames; i++) {
-    float start_time = millis();
 
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
@@ -205,19 +207,16 @@ void simulateMissileFlight() {
     missile.posX += dxPerFrame;
     // simple arc with parabolic Y motion
     //missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
-    float pixelToMeter = 0.002;
-    int t = 1;
-    int a = 9.8;
-    missile.velY -= a*(travelTime/totalFrames);
-    missile.posY -= missile.velY*pixelToMeter;
-    Serial.println("missile.velY: ");
-    Serial.println(missile.velY);
-    Serial.println("missile.posY: ");
-    Serial.println(missile.posY);
+    float pixelToMeter = 1;
+    float t = 1.0/framesPerSec;
+    float a = 9.8;
+    float oldVelocityY= missile.velY;
+    missile.velY = missile.velY - a*t*pixelToMeter;
+    missile.posY = missile.posY-oldVelocityY*t-0.5*a*t*t*pixelToMeter;
     // Draw missile
     // Missile triangle dimensions
     int size = 20;
-    missile.launchAngle = (-1)*atan2(missile.velY,missile.velX);
+    missile.launchAngle = atan2(-missile.velY,missile.velX);
     // Calculate rotated triangle points
     missile.x0 = missile.posX + size * cos(missile.launchAngle);
     missile.y0 = missile.posY + size * sin(missile.launchAngle);
@@ -230,12 +229,57 @@ void simulateMissileFlight() {
 
     // Draw missile (red triangle)
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
-    delay(100);  
+    delay(1000/framesPerSec);
+
+    if (outOfBounds()) {
+      missile.hitTarget = false;
+      break;
+    }  
+    if (hitTarget()) {
+      missile.hitTarget = true;
+      break;
+    }
   }
-  float dist = sqrt(pow(missile.posX - target.posX, 2) + pow(missile.posY - target.posY, 2));
-  if (dist < 25) {
-    handlingEndTFT(true);
-  }
+  Serial.println("total travel time: ");
+  Serial.println(millis()-start_time);
+}
+
+bool outOfBounds() {
+  return missile.x0 < 0 || missile.x0 >= 240 || missile.y0 < 0 || missile.y0 >= 280;
+}
+
+bool hitTarget() {
+  float dx = missile.x0 - target.posX;
+  float dy = missile.y0 - target.posY;
+  float distance = sqrt(dx * dx + dy * dy);
+
+  return distance <= target.radius;  
+}
+
+// Function to start launch
+void launchSound() {
+  tone(SPEAKER_PIN, 350,100);
+  tone(SPEAKER_PIN, 500,250);
+}
+
+// Function for hitting obstacle
+void hitObstacleSound() {
+  tone(SPEAKER_PIN, 500,250);
+  tone(SPEAKER_PIN, 350,100);
+}
+
+// Function for hitting target
+void hitTargetSound() {
+  tone(SPEAKER_PIN, 350,250);
+  tone(SPEAKER_PIN, 425,200);
+  tone(SPEAKER_PIN, 500,150);
+}
+
+// Function for missing target
+void missTargetSound() {
+  tone(SPEAKER_PIN, 400,200);
+  tone(SPEAKER_PIN, 300,200);
+  tone(SPEAKER_PIN, 200,200);
 }
 
 void setup() {
@@ -271,10 +315,11 @@ void loop() {
     buttonState = reading;  // update stable state
   }
   lastButtonState = reading;
-
-  //handlingEndTFT(true);  // Simulate a hit for demonstration purposes
-  //handlingStartTFT();
-  //delay(5000);  // Wait for 5 seconds before next iteration
+  if (missile.launched) {
+    handlingEndTFT(missile.hitTarget); 
+    handlingStartTFT();
+    delay(5000);  // Wait for 5 seconds before next iteration
+  }
 }
 
   //for speaker control
