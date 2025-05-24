@@ -25,6 +25,8 @@ bool waiting_for_input_from_web = true;  // Flag to indicate if we are waiting f
 //speaker:
 #define SPEAKER_PIN 13
 
+//missile:
+Missile missile;
 
 void handlingWIFI(){
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
@@ -59,24 +61,24 @@ void handleRoot() {
           <option value="powered">Powered</option>
         </select><br><br>
 
-        <label>Launch Speed:</label>
-        <input type="range" name="speed" min="1" max="100" value="50"><br><br>
+        <label>Missile Launch Speed (1-100):</label>
+        <input type="number" name="speed" min="1" max="100" value="50"><br><br>
 
-        <label>Launch Angle (0-90):</label>
+        <label>Missile Launch Angle (0-90):</label>
         <input type="number" name="angle" min="0" max="90" value="45"><br><br>
 
         <label>Route Difficulty:</label>
         <select name="route">
-          <option value="none">None</option>
-          <option value="fixed">Fixed</option>
-          <option value="random">Random</option>
+          <option value="none">No obstacles</option>
+          <option value="fixed">Fixed obstacles</option>
+          <option value="random">Random obstacles</option>
         </select><br><br>
 
         <label>Target Difficulty:</label>
         <select name="target">
-          <option value="static">Static</option>
-          <option value="slow">Slow Vertical</option>
-          <option value="random">Random Box</option>
+          <option value="static">Static Target</option>
+          <option value="slow">Slow Moving Target</option>
+          <option value="random">Random Moving Target</option>
         </select><br><br>
 
         <input type="submit" value="Upload Simulation Configuration">
@@ -101,7 +103,23 @@ void handleUpload() {
   Serial.println("Route: " + route);
   Serial.println("Target: " + target);
 
-  // TODO: Store values & set config ready flag
+  //setting missile parameters
+  if (type == "ballistic") {
+    missile.type = BALLISTIC;
+  } else if (type == "powered") {
+    missile.type = POWERED;
+  }
+  missile.launchSpeed = speed.toInt();
+  missile.launchAngle = angle.toInt();
+  missile.posX = 0;  // Initial position
+  missile.posY = 0;  // Initial position
+  missile.velX = missile.launchSpeed * cos(missile.launchAngle * PI / 180);
+  missile.velY = missile.launchSpeed * sin(missile.launchAngle * PI / 180);
+  missile.launched = false;  // Not launched yet
+  missile.hitTarget = false;  // Not hit yet
+  missile.hitObstacle = false;  // Not hit yet
+  missile.launchTime = 0;  // No launch time yet
+
   // Turn on LED if needed
   waiting_for_input_from_web = false;  // Set flag to false to indicate we have received input
   server.send(200, "text/html", "<h2>Configuration Received! You may now launch the missile.</h2>");
@@ -134,6 +152,38 @@ void handlingEndTFT(bool hit){
   }
 }
 
+void showStartSimulationScreen() {
+  tft.fillScreen(ILI9341_BLACK);
+
+  // Missile position
+  int missileX = 20;                     // Bottom-left corner X
+  int missileY = tft.height() - 20;      // Bottom-left corner Y
+
+  // Missile angle (convert degrees to radians)
+  float angleRad = radians(-missile.launchAngle);  // Negative because Y-axis is inverted
+
+  // Missile triangle dimensions
+  int size = 20;
+
+  // Calculate rotated triangle points
+  int x0 = missileX + size * cos(angleRad);
+  int y0 = missileY + size * sin(angleRad);
+
+  int x1 = missileX + size * cos(angleRad + radians(150));
+  int y1 = missileY + size * sin(angleRad + radians(150));
+
+  int x2 = missileX + size * cos(angleRad - radians(150));
+  int y2 = missileY + size * sin(angleRad - radians(150));
+
+  // Draw missile (red triangle)
+  tft.fillTriangle(x0, y0, x1, y1, x2, y2, ILI9341_RED);
+
+  // Target (blue circle)
+  int targetX = tft.width() - 25;
+  int targetY = 25;
+  tft.fillCircle(targetX, targetY, 25, ILI9341_BLUE);
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -145,7 +195,8 @@ void setup() {
     delay(100);
     server.handleClient(); 
   }
-
+  showStartSimulationScreen();
+  delay(10000);  // Show simulation screen for 2 seconds
 }
 
 void loop() {
@@ -156,8 +207,6 @@ void loop() {
   handlingStartTFT();
   delay(5000);  // Wait for 5 seconds before next iteration
 }
-
-
 
   //for speaker control
   //tone(SPEAKER_PIN, 200);
