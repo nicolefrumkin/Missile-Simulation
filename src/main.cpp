@@ -166,23 +166,22 @@ void showStartSimulationScreen() {
   missile.posY = tft.height() - 20;      // Bottom-left corner Y
 
   // Missile angle (convert degrees to radians)
-  float angleRad = radians(-missile.launchAngle);  // Negative because Y-axis is inverted
-
+  missile.launchAngle = radians(-missile.launchAngle);
   // Missile triangle dimensions
   int size = 20;
 
   // Calculate rotated triangle points
-  int x0 = missile.posX + size * cos(angleRad);
-  int y0 = missile.posY + size * sin(angleRad);
+  missile.x0 = missile.posX + size * cos(missile.launchAngle);
+  missile.y0 = missile.posY + size * sin(missile.launchAngle);
 
-  int x1 = missile.posX + size * cos(angleRad + radians(150));
-  int y1 = missile.posY + size * sin(angleRad + radians(150));
+  missile.x1 = missile.posX + size * cos(missile.launchAngle + radians(150));
+  missile.y1 = missile.posY + size * sin(missile.launchAngle + radians(150));
 
-  int x2 = missile.posX + size * cos(angleRad - radians(150));
-  int y2 = missile.posY + size * sin(angleRad - radians(150));
+  missile.x2 = missile.posX + size * cos(missile.launchAngle - radians(150));
+  missile.y2 = missile.posY + size * sin(missile.launchAngle - radians(150));
 
   // Draw missile (red triangle)
-  tft.fillTriangle(x0, y0, x1, y1, x2, y2, ILI9341_RED);
+  tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
 
   // Target (blue circle)
   target.posX = tft.width() - 25;
@@ -194,41 +193,44 @@ void simulateMissileFlight() {
   float dx = target.posX - missile.posX;
 
   int travelTime = map(missile.launchSpeed, 1, 100, 60, 20);  // seconds
-  int totalFrames = travelTime;
+  int totalFrames = travelTime*10;
   float dxPerFrame = dx / totalFrames;
 
   for (int i = 0; i < totalFrames; i++) {
-    // Clear old missile
-    tft.fillScreen(ILI9341_BLACK);
-    tft.fillCircle(target.posX, target.posY, 25, ILI9341_BLUE);
+    float start_time = millis();
 
+    // Clear old missile
+    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
     // Update position
     missile.posX += dxPerFrame;
-    // Optional: add simple arc with parabolic Y motion
-    missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
-
+    // simple arc with parabolic Y motion
+    //missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
+    float pixelToMeter = 0.002;
+    int t = 1;
+    int a = 9.8;
+    missile.velY -= a*(travelTime/totalFrames);
+    missile.posY -= missile.velY*pixelToMeter;
+    Serial.println("missile.velY: ");
+    Serial.println(missile.velY);
+    Serial.println("missile.posY: ");
+    Serial.println(missile.posY);
     // Draw missile
     // Missile triangle dimensions
     int size = 20;
-
-    float vx = dxPerFrame;
-    float vy = -0.004 * (i * dxPerFrame);  // derivative of Y equation
-
-    float angleRad = atan2(vy, vx);
+    missile.launchAngle = (-1)*atan2(missile.velY,missile.velX);
     // Calculate rotated triangle points
-    int x0 = missile.posX + size * cos(angleRad);
-    int y0 = missile.posY + size * sin(angleRad);
+    missile.x0 = missile.posX + size * cos(missile.launchAngle);
+    missile.y0 = missile.posY + size * sin(missile.launchAngle);
 
-    int x1 = missile.posX + size * cos(angleRad + radians(150));
-    int y1 = missile.posY + size * sin(angleRad + radians(150));
+    missile.x1 = missile.posX + size * cos(missile.launchAngle + radians(150));
+    missile.y1 = missile.posY + size * sin(missile.launchAngle + radians(150));
 
-    int x2 = missile.posX + size * cos(angleRad - radians(150));
-    int y2 = missile.posY + size * sin(angleRad - radians(150));
+    missile.x2 = missile.posX + size * cos(missile.launchAngle - radians(150));
+    missile.y2 = missile.posY + size * sin(missile.launchAngle - radians(150));
 
     // Draw missile (red triangle)
-    tft.fillTriangle(x0, y0, x1, y1, x2, y2, ILI9341_RED);
-
-    delay(50);  // 20 fps
+    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
+    delay(100);  
   }
   float dist = sqrt(pow(missile.posX - target.posX, 2) + pow(missile.posY - target.posY, 2));
   if (dist < 25) {

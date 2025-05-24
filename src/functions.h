@@ -21,6 +21,13 @@ typedef struct Missile {
   bool hitTarget;     // True if missile hit target
   bool hitObstacle;   // True if missile hit obstacle
   unsigned long launchTime; // Timestamp of launch (millis())
+  // triangle points
+  int x0;
+  int y0;
+  int x1;
+  int y1;
+  int x2;
+  int y2;
 } Missile;
 
 typedef struct Target {
