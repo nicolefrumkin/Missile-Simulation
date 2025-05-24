@@ -24,7 +24,7 @@
       "id": "btn1",
       "top": 159.8,
       "left": 153.6,
-      "attrs": { "color": "green", "xray": "1" }
+      "attrs": { "color": "green", "xray": "1", "bounce": "0" }
     }
   ],
   "connections": [
@@ -41,8 +41,8 @@
     [ "lcd1:LED", "esp:5V", "red", [ "h76.8", "v172.8" ] ],
     [ "bz1:1", "esp:GND.1", "black", [ "v0" ] ],
     [ "bz1:2", "esp:13", "red", [ "v0" ] ],
-    [ "btn1:1.l", "esp:15", "green", [ "h0" ] ],
-    [ "btn1:1.r", "esp:GND.2", "green", [ "v0" ] ]
+    [ "btn1:1.r", "esp:GND.2", "green", [ "v0" ] ],
+    [ "esp:15", "btn1:2.l", "green", [ "v0", "h38.4", "v19.2" ] ]
   ],
   "dependencies": {}
 }

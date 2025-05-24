@@ -153,7 +153,7 @@ void handlingEndTFT(bool hit){
   if (hit) {
     tft.print("Missile hit target!");
   } else {
-    tft.print("Missile miss target!");
+    tft.print("Missile missed target!");
   }
   delay(5000);
 }
@@ -193,23 +193,22 @@ void showStartSimulationScreen() {
 void simulateMissileFlight() {
   float dx = target.posX - missile.posX;
 
-  int travelTime = map(missile.launchSpeed, 1, 100, 60, 20);  // seconds
+  int travelTime = map(missile.velX, 1, 100, 60, 20);  // seconds
   float framesPerSec = 10;
   int totalFrames = travelTime*framesPerSec;
   float dxPerFrame = dx / totalFrames;
   float start_time = millis();
 
   for (int i = 0; i < totalFrames; i++) {
-
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
-    // Update position
-    missile.posX += dxPerFrame;
+
+    missile.posX += dxPerFrame; // Update x position
     // simple arc with parabolic Y motion
     //missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
     float pixelToMeter = 1;
     float t = 1.0/framesPerSec;
-    float a = 9.8;
+    float a = 9.8*0.1;
     float oldVelocityY= missile.velY;
     missile.velY = missile.velY - a*t*pixelToMeter;
     missile.posY = missile.posY-oldVelocityY*t-0.5*a*t*t*pixelToMeter;
@@ -245,7 +244,7 @@ void simulateMissileFlight() {
 }
 
 bool outOfBounds() {
-  return missile.x0 < 0 || missile.x0 >= 240 || missile.y0 < 0 || missile.y0 >= 280;
+  return missile.x0 < 0 || missile.x0 >= 320 || missile.y0 < 0 || missile.y0 >= 240;
 }
 
 bool hitTarget() {
@@ -306,22 +305,23 @@ void loop() {
   }
 
   if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading == LOW && buttonState == HIGH) {
-      // Button was just pressed (transition from HIGH to LOW)
-      missile.launched = true;
-      Serial.println("Missile Launched!");
+    if (reading != buttonState) {
+      buttonState = reading;  // update stable state
+      if(buttonState== LOW && !missile.launched) {  // Button pressed
+        launchSound();
+        Serial.println("Button Pressed! Launching Missile...");
+        missile.launched = true;
       simulateMissileFlight();
+      }
     }
-    buttonState = reading;  // update stable state
   }
   lastButtonState = reading;
+  
   if (missile.launched) {
     handlingEndTFT(missile.hitTarget); 
-    handlingStartTFT();
-    delay(5000);  // Wait for 5 seconds before next iteration
+    missile.launched = false; 
+    waiting_for_input_from_web = true;
+    delay(3000);  // Wait for 3 seconds before next iteration
+    setup();
   }
 }
-
-  //for speaker control
-  //tone(SPEAKER_PIN, 200);
-  //noTone(SPEAKER_PIN);
