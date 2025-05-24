@@ -13,6 +13,7 @@
 #define TFT_MOSI   23
 #define TFT_MISO   19
 #define TFT_SCLK   18
+#define BUTTON_PIN 15
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 //wifi:
@@ -25,8 +26,12 @@ bool waiting_for_input_from_web = true;  // Flag to indicate if we are waiting f
 //speaker:
 #define SPEAKER_PIN 13
 
-//missile:
 Missile missile;
+Target target;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;  // milliseconds
+bool buttonState = HIGH;            // Current state
+bool lastButtonState = HIGH;        // Previous state
 
 void handlingWIFI(){
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
@@ -150,14 +155,15 @@ void handlingEndTFT(bool hit){
   } else {
     tft.print("Missile miss target!");
   }
+  delay(5000);
 }
 
 void showStartSimulationScreen() {
   tft.fillScreen(ILI9341_BLACK);
 
   // Missile position
-  int missileX = 20;                     // Bottom-left corner X
-  int missileY = tft.height() - 20;      // Bottom-left corner Y
+  missile.posX = 20;                     // Bottom-left corner X
+  missile.posY = tft.height() - 20;      // Bottom-left corner Y
 
   // Missile angle (convert degrees to radians)
   float angleRad = radians(-missile.launchAngle);  // Negative because Y-axis is inverted
@@ -166,29 +172,75 @@ void showStartSimulationScreen() {
   int size = 20;
 
   // Calculate rotated triangle points
-  int x0 = missileX + size * cos(angleRad);
-  int y0 = missileY + size * sin(angleRad);
+  int x0 = missile.posX + size * cos(angleRad);
+  int y0 = missile.posY + size * sin(angleRad);
 
-  int x1 = missileX + size * cos(angleRad + radians(150));
-  int y1 = missileY + size * sin(angleRad + radians(150));
+  int x1 = missile.posX + size * cos(angleRad + radians(150));
+  int y1 = missile.posY + size * sin(angleRad + radians(150));
 
-  int x2 = missileX + size * cos(angleRad - radians(150));
-  int y2 = missileY + size * sin(angleRad - radians(150));
+  int x2 = missile.posX + size * cos(angleRad - radians(150));
+  int y2 = missile.posY + size * sin(angleRad - radians(150));
 
   // Draw missile (red triangle)
   tft.fillTriangle(x0, y0, x1, y1, x2, y2, ILI9341_RED);
 
   // Target (blue circle)
-  int targetX = tft.width() - 25;
-  int targetY = 25;
-  tft.fillCircle(targetX, targetY, 25, ILI9341_BLUE);
+  target.posX = tft.width() - 25;
+  target.posY = 25;
+  tft.fillCircle(target.posX, target.posY, 25, ILI9341_BLUE);
+}
+
+void simulateMissileFlight() {
+  float dx = target.posX - missile.posX;
+
+  int travelTime = map(missile.launchSpeed, 1, 100, 60, 20);  // seconds
+  int totalFrames = travelTime;
+  float dxPerFrame = dx / totalFrames;
+
+  for (int i = 0; i < totalFrames; i++) {
+    // Clear old missile
+    tft.fillScreen(ILI9341_BLACK);
+    tft.fillCircle(target.posX, target.posY, 25, ILI9341_BLUE);
+
+    // Update position
+    missile.posX += dxPerFrame;
+    // Optional: add simple arc with parabolic Y motion
+    missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
+
+    // Draw missile
+    // Missile triangle dimensions
+    int size = 20;
+
+    float vx = dxPerFrame;
+    float vy = -0.004 * (i * dxPerFrame);  // derivative of Y equation
+
+    float angleRad = atan2(vy, vx);
+    // Calculate rotated triangle points
+    int x0 = missile.posX + size * cos(angleRad);
+    int y0 = missile.posY + size * sin(angleRad);
+
+    int x1 = missile.posX + size * cos(angleRad + radians(150));
+    int y1 = missile.posY + size * sin(angleRad + radians(150));
+
+    int x2 = missile.posX + size * cos(angleRad - radians(150));
+    int y2 = missile.posY + size * sin(angleRad - radians(150));
+
+    // Draw missile (red triangle)
+    tft.fillTriangle(x0, y0, x1, y1, x2, y2, ILI9341_RED);
+
+    delay(50);  // 20 fps
+  }
+  float dist = sqrt(pow(missile.posX - target.posX, 2) + pow(missile.posY - target.posY, 2));
+  if (dist < 25) {
+    handlingEndTFT(true);
+  }
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(SPEAKER_PIN, OUTPUT);
-
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
   handlingStartTFT();
   handlingWIFI();
   while(waiting_for_input_from_web) { // Wait for web input
@@ -196,16 +248,31 @@ void setup() {
     server.handleClient(); 
   }
   showStartSimulationScreen();
-  delay(10000);  // Show simulation screen for 2 seconds
+  delay(2000);  // Show simulation screen for 2 seconds
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  int reading = digitalRead(BUTTON_PIN);
 
-  handlingEndTFT(true);  // Simulate a hit for demonstration purposes
-  delay(5000);
-  handlingStartTFT();
-  delay(5000);  // Wait for 5 seconds before next iteration
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();  // reset debounce timer
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading == LOW && buttonState == HIGH) {
+      // Button was just pressed (transition from HIGH to LOW)
+      missile.launched = true;
+      Serial.println("Missile Launched!");
+      simulateMissileFlight();
+    }
+    buttonState = reading;  // update stable state
+  }
+  lastButtonState = reading;
+
+  //handlingEndTFT(true);  // Simulate a hit for demonstration purposes
+  //handlingStartTFT();
+  //delay(5000);  // Wait for 5 seconds before next iteration
 }
 
   //for speaker control

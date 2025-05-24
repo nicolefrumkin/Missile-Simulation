@@ -18,6 +18,13 @@
       "left": -401.54,
       "rotate": 270,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 159.8,
+      "left": 153.6,
+      "attrs": { "color": "green", "xray": "1" }
     }
   ],
   "connections": [
@@ -33,7 +40,9 @@
     [ "lcd1:SCK", "esp:18", "orange", [ "h67.2", "v67.2" ] ],
     [ "lcd1:LED", "esp:5V", "red", [ "h76.8", "v172.8" ] ],
     [ "bz1:1", "esp:GND.1", "black", [ "v0" ] ],
-    [ "bz1:2", "esp:13", "red", [ "v0" ] ]
+    [ "bz1:2", "esp:13", "red", [ "v0" ] ],
+    [ "btn1:1.l", "esp:15", "green", [ "h0" ] ],
+    [ "btn1:1.r", "esp:GND.2", "green", [ "v0" ] ]
   ],
   "dependencies": {}
 }
