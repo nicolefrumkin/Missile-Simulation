@@ -32,6 +32,7 @@ unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50;  // milliseconds
 bool buttonState = HIGH;            // Current state
 bool lastButtonState = HIGH;        // Previous state
+int MISSILE_SIZE = 20;  // Size of the missile triangle
 
 void handlingWIFI(){
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
@@ -157,28 +158,29 @@ void handlingEndTFT(bool hit){
   }
   delay(5000);
 }
+void calculateMissileTriangle(float angle) {
+  missile.x0 = missile.posX + MISSILE_SIZE * cos(angle);
+  missile.y0 = missile.posY + MISSILE_SIZE * sin(angle);
+
+  missile.x1 = missile.posX + MISSILE_SIZE * cos(angle + radians(150));
+  missile.y1 = missile.posY + MISSILE_SIZE * sin(angle + radians(150));
+
+  missile.x2 = missile.posX + MISSILE_SIZE * cos(angle - radians(150));
+  missile.y2 = missile.posY + MISSILE_SIZE * sin(angle - radians(150));
+}
 
 void showStartSimulationScreen() {
   tft.fillScreen(ILI9341_BLACK);
 
   // Missile position
-  missile.posX = 20;                     // Bottom-left corner X
-  missile.posY = tft.height() - 20;      // Bottom-left corner Y
+  missile.posX = MISSILE_SIZE;                     // Bottom-left corner X
+  missile.posY = tft.height() - MISSILE_SIZE;      // Bottom-left corner Y
 
   // Missile angle (convert degrees to radians)
   missile.launchAngle = radians(-missile.launchAngle);
-  // Missile triangle dimensions
-  int size = 20;
 
-  // Calculate rotated triangle points
-  missile.x0 = missile.posX + size * cos(missile.launchAngle);
-  missile.y0 = missile.posY + size * sin(missile.launchAngle);
-
-  missile.x1 = missile.posX + size * cos(missile.launchAngle + radians(150));
-  missile.y1 = missile.posY + size * sin(missile.launchAngle + radians(150));
-
-  missile.x2 = missile.posX + size * cos(missile.launchAngle - radians(150));
-  missile.y2 = missile.posY + size * sin(missile.launchAngle - radians(150));
+  // Calculate missile triangle points
+  calculateMissileTriangle(missile.launchAngle);
 
   // Draw missile (red triangle)
   tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
@@ -193,38 +195,29 @@ void showStartSimulationScreen() {
 void simulateMissileFlight() {
   float dx = target.posX - missile.posX;
 
-  int travelTime = map(missile.velX, 1, 100, 60, 20);  // seconds
+  missile.velX = map(missile.velX, 1, 100, 10, 32);  // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
+  int travelTime = map(missile.velX, 1, 100, 30, 10); // travel time in seconds
+  missile.velY = missile.velX * tan(missile.launchAngle); // vertical velocity based on angle
+  
   float framesPerSec = 10;
   int totalFrames = travelTime*framesPerSec;
-  float dxPerFrame = dx / totalFrames;
-  float start_time = millis();
+  float g = 2.8; // gravity in m/s^2, random number need to explain
 
   for (int i = 0; i < totalFrames; i++) {
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
 
-    missile.posX += dxPerFrame; // Update x position
-    // simple arc with parabolic Y motion
-    //missile.posY = (tft.height() - 20) - (0.002 * (i * dxPerFrame) * (i * dxPerFrame));  // simple parabola
-    float pixelToMeter = 1;
-    float t = 1.0/framesPerSec;
-    float a = 9.8*0.1;
-    float oldVelocityY= missile.velY;
-    missile.velY = missile.velY - a*t*pixelToMeter;
-    missile.posY = missile.posY-oldVelocityY*t-0.5*a*t*t*pixelToMeter;
-    // Draw missile
-    // Missile triangle dimensions
-    int size = 20;
-    missile.launchAngle = atan2(-missile.velY,missile.velX);
+    missile.posX += missile.velX/framesPerSec; // Update x position
+    missile.posY += missile.velY/framesPerSec;
+    missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
+    
+    //calculate new angle
+    Serial.print("Missile angle: ");
+    Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
+    missile.launchAngle = atan2(missile.velY,missile.velX);
+
     // Calculate rotated triangle points
-    missile.x0 = missile.posX + size * cos(missile.launchAngle);
-    missile.y0 = missile.posY + size * sin(missile.launchAngle);
-
-    missile.x1 = missile.posX + size * cos(missile.launchAngle + radians(150));
-    missile.y1 = missile.posY + size * sin(missile.launchAngle + radians(150));
-
-    missile.x2 = missile.posX + size * cos(missile.launchAngle - radians(150));
-    missile.y2 = missile.posY + size * sin(missile.launchAngle - radians(150));
+    calculateMissileTriangle(missile.launchAngle);
 
     // Draw missile (red triangle)
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
@@ -239,8 +232,7 @@ void simulateMissileFlight() {
       break;
     }
   }
-  Serial.println("total travel time: ");
-  Serial.println(millis()-start_time);
+  Serial.println("Flight simulation ended");
 }
 
 bool outOfBounds() {
