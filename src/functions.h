@@ -1,4 +1,4 @@
 void handlingWIFI();
-void handlingTFT();
+void handlingStartTFT();
 void handleRoot(); 
 void handleUpload();

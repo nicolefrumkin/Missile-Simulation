@@ -20,6 +20,7 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 #define WIFI_PASSWORD ""
 #define WIFI_CHANNEL 6
 WebServer server(80);  // HTTP server on port 80
+bool waiting_for_input_from_web = true;  // Flag to indicate if we are waiting for input from the web interface
 
 //speaker:
 #define SPEAKER_PIN 13
@@ -38,6 +39,8 @@ void handlingWIFI(){
 
   server.on("/", handleRoot);  // Set up HTML handler
   server.begin();
+  Serial.println("Please open the following URL in your browser: http://localhost:8180/");
+  Serial.println("And provide input parameters to the server.");
   server.on("/upload", handleUpload);
 }
 
@@ -100,22 +103,35 @@ void handleUpload() {
 
   // TODO: Store values & set config ready flag
   // Turn on LED if needed
-
+  waiting_for_input_from_web = false;  // Set flag to false to indicate we have received input
   server.send(200, "text/html", "<h2>Configuration Received! You may now launch the missile.</h2>");
 }
 
-void handlingTFT(){
+void handlingStartTFT(){
   tft.begin();
 
-  tft.setCursor(26, 120);
-  tft.setTextColor(ILI9341_RED);
-  tft.setTextSize(3);
-  tft.println("Hello, TFT!");
+  tft.setRotation(3);  // Optional: rotate for horizontal layout
+  tft.fillScreen(ILI9341_BLACK);  // Clear screen
 
-  tft.setCursor(20, 160);
-  tft.setTextColor(ILI9341_GREEN);
+  // First message
+  tft.setCursor(10, 50);  // X=10, Y=50
+  tft.setTextColor(ILI9341_RED);
   tft.setTextSize(2);
-  tft.println("I can has colors?");
+  tft.print("Hello, pending simulation configuration from WEB");
+}
+
+void handlingEndTFT(bool hit){
+  tft.fillScreen(ILI9341_BLACK);  // Clear screen
+
+  // First message
+  tft.setCursor(10, 50);  // X=10, Y=50
+  tft.setTextColor(ILI9341_RED);
+  tft.setTextSize(2);
+  if (hit) {
+    tft.print("Missile hit target!");
+  } else {
+    tft.print("Missile miss target!");
+  }
 }
 
 void setup() {
@@ -123,17 +139,22 @@ void setup() {
   Serial.begin(115200);
   pinMode(SPEAKER_PIN, OUTPUT);
 
-  handlingTFT();
+  handlingStartTFT();
   handlingWIFI();
-  
+  while(waiting_for_input_from_web) { // Wait for web input
+    delay(100);
+    server.handleClient(); 
+  }
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(100);
-  server.handleClient(); 
-  
 
+  handlingEndTFT(true);  // Simulate a hit for demonstration purposes
+  delay(5000);
+  handlingStartTFT();
+  delay(5000);  // Wait for 5 seconds before next iteration
 }
 
 
