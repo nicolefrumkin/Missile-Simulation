@@ -1,0 +1,26 @@
+1. powered missile support
+    user is controlling by tapping on screen
+    using touch screen (maybe need to add connections)
+
+2. obstacles 
+    fixed position obstacles
+    random position obstacles (per simulation)
+
+3. moving target
+    static - done
+    slow moving (up and down)
+    ramdom moving (inside a small imaginary box)
+
+4. unique Sound for 
+    launch
+    hit obstacle
+    hit target
+    miss target
+
+5. indication led 
+    OFF on startup
+    ON after recieving configuration
+    blinking when flying
+
+6. presentation
+7. be happy
