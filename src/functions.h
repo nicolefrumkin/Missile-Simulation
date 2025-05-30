@@ -11,6 +11,7 @@ void launchSound();
 void hitObstacleSound();
 void hitTargetSound();
 void missTargetSound();
+TS_Point touchLocation();
 
 #define BALLISTIC 0
 #define POWERED 1

@@ -1,10 +1,12 @@
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
+#include "Adafruit_FT6206.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <functions.h>
+
 
 //screen:
 #define TFT_CS     5
@@ -14,7 +16,10 @@
 #define TFT_MISO   19
 #define TFT_SCLK   18
 #define BUTTON_PIN 15
+#define TOUCH_SDA  21
+#define TOUCH_SCL  22
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+Adafruit_FT6206 ctp = Adafruit_FT6206();
 
 //wifi:
 #define WIFI_SSID "Wokwi-GUEST"
@@ -137,6 +142,10 @@ void handlingStartTFT(){
   tft.setRotation(3);  // Optional: rotate for horizontal layout
   tft.fillScreen(ILI9341_BLACK);  // Clear screen
 
+  if (!ctp.begin()) {
+    Serial.println("Couldn't start touchscreen");
+  }
+
   // First message
   tft.setCursor(10, 50);  // X=10, Y=50
   tft.setTextColor(ILI9341_RED);
@@ -235,6 +244,82 @@ void simulateMissileFlight() {
   Serial.println("Flight simulation ended");
 }
 
+void simulatePoweredMissileFlight() {
+  float dx = target.posX - missile.posX;
+
+  missile.velX = map(missile.velX, 1, 100, 10, 32);  // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
+  int travelTime = map(missile.velX, 1, 100, 30, 10); // travel time in seconds
+  missile.velY = missile.velX * tan(missile.launchAngle); // vertical velocity based on angle
+  
+  float framesPerSec = 10;
+  int totalFrames = travelTime*framesPerSec;
+  float g = 2.8; // gravity in m/s^2, random number need to explain
+  TS_Point touchPoint;
+
+  for (int i = 0; i < totalFrames; i++) {
+    // Clear old missile
+    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
+
+    touchPoint = touchLocation(); // Touch X and Y are the opposite of the screen X Y axis so we use here X from touch as Y for screen!
+    if (touchPoint.x > 0) {
+      if(touchPoint.x > missile.y0) { // pressed under the missile
+        missile.velY += 20/framesPerSec; // randomly testing decreasing val
+      } else if (touchPoint.x < missile.y0) { // pressed above the missile
+        missile.velY -= 20/framesPerSec; // randomly testing increasin val
+      }
+      touchPoint = TS_Point(); // Reset touch point after handling
+      Serial.print("Missile Ylocation: ");
+      Serial.println(missile.posY);
+      Serial.print("Missile Y vel: ");
+      Serial.println(missile.velY);
+    }
+
+    missile.posX += missile.velX/framesPerSec; // Update x position
+    missile.posY += missile.velY/framesPerSec;
+    missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
+
+    //calculate new angle
+    //Serial.print("Missile angle: ");
+    //Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
+    missile.launchAngle = atan2(missile.velY,missile.velX);
+
+    // Calculate rotated triangle points
+    calculateMissileTriangle(missile.launchAngle);
+
+    // Draw missile (red triangle)
+    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
+    delay(1000/framesPerSec);
+
+    if (outOfBounds()) {
+      missile.hitTarget = false;
+      break;
+    }  
+    if (hitTarget()) {
+      missile.hitTarget = true;
+      break;
+    }
+  }
+  Serial.println("Flight simulation ended");
+}
+
+
+TS_Point touchLocation() {
+
+  if (ctp.touched()) {
+    TS_Point p = ctp.getPoint();
+    Serial.print("Touch at X: "); Serial.print(p.x);
+    Serial.print(", Y: "); Serial.println(p.y);
+    // Example: If touch detected, launch missile
+    if (!missile.launched) {
+      launchSound();
+      missile.launched = true;
+      simulateMissileFlight();
+    }
+    return p;  // Return touch point
+  }
+  return TS_Point();  // No touch detected
+}
+
 bool outOfBounds() {
   return missile.x0 < 0 || missile.x0 >= 320 || missile.y0 < 0 || missile.y0 >= 240;
 }
@@ -303,7 +388,11 @@ void loop() {
         launchSound();
         Serial.println("Button Pressed! Launching Missile...");
         missile.launched = true;
-      simulateMissileFlight();
+        if(missile.type == POWERED) {
+          simulatePoweredMissileFlight();
+        } else if(missile.type == BALLISTIC) {
+          simulateMissileFlight();
+        }
       }
     }
   }
