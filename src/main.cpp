@@ -107,7 +107,7 @@ void handleRoot()
 
 void handleUpload()
 {
-  String missile_type = server.arg("missile_type");
+  String missile_type = server.arg("type");
   String speed = server.arg("speed");
   String angle = server.arg("angle");
   String route = server.arg("route");
@@ -195,9 +195,15 @@ void handlingEndTFT(bool hit)
   }
   else
   {
-    tft.setCursor(40, 100);
-    tft.setTextColor(ILI9341_RED);
-    tft.print("Missile missed target!");
+    if(missile.hitObstacle) {
+      tft.setCursor(60, 100);
+      tft.setTextColor(ILI9341_YELLOW);
+      tft.print("Missile hit obstacle!");
+    } else {
+      tft.setCursor(60, 100);
+      tft.setTextColor(ILI9341_RED);
+      tft.print("Missile missed target!");
+    }
   }
   delay(5000);
 }
@@ -230,6 +236,8 @@ void showStartSimulationScreen()
   // Draw missile (red triangle)
   tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
 
+  addObstacles();
+
   // Target (blue circle)
   target.radius = 25;
   target.posX = tft.width() - target.radius - 5;
@@ -237,9 +245,30 @@ void showStartSimulationScreen()
   tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
+void addObstacles() {
+  String route = server.arg("route");
+  // Draw obstacle (green rectangle)
+  if (route == "none") {
+    return; // No random obstacles
+  }
+  for (int i = 0; i < 4; i++) {
+     if(route == "fixed") {
+      // Fixed obstacles
+      missile.obstacles[i].posX = OBSTACLE_BOX_X_MIN + i * 10; // Fixed positions
+      missile.obstacles[i].posY = OBSTACLE_BOX_Y_MIN + i * 50;
+      missile.obstacles[i].hit = false; 
+      tft.fillRect(missile.obstacles[i].posX, missile.obstacles[i].posY, 15, 15, ILI9341_GREEN); // Draw fixed obstacles
+     } else if (route == "random") {
+      // Random obstacles
+      missile.obstacles[i].posX = random(OBSTACLE_BOX_X_MIN, OBSTACLE_BOX_X_MAX);
+      missile.obstacles[i].posY = random(OBSTACLE_BOX_Y_MIN, OBSTACLE_BOX_Y_MAX);
+      missile.obstacles[i].hit = false; 
+      tft.fillRect(missile.obstacles[i].posX, missile.obstacles[i].posY, 15, 15, ILI9341_GREEN); // Draw random obstacles
+    }
+  } 
+}
 
-void updateTargetPosition(float dt)
-{
+void updateTargetPosition(float dt) {
   static float directionX = 1;
   static float directionY = 1;
 
@@ -248,12 +277,14 @@ void updateTargetPosition(float dt)
     return;
   }
 
+  Target old_target = target; // Save old target position
+  
   if (target.type == SLOW)
   {
-    target.posX += directionX * 30 * dt; // slow horizontal movement
-    if (target.posX <= TARGET_BOX_X_MIN || target.posX >= TARGET_BOX_X_MAX)
+    target.posY+= directionY* 30 * dt; // slow horizontal movement
+    if (target.posY >= TARGET_BOX_Y_MAX || target.posY < TARGET_BOX_Y_MIN)
     {
-      directionX *= -1;
+      directionY *= -1;
     }
   }
 
@@ -271,6 +302,7 @@ void updateTargetPosition(float dt)
     if (target.posY > TARGET_BOX_Y_MAX)
       target.posY = TARGET_BOX_Y_MAX;
   }
+  tft.fillCircle(old_target.posX, old_target.posY, old_target.radius, ILI9341_BLACK); // Clear old target position
   tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
@@ -290,8 +322,7 @@ void simulateMissileFlight()
   for (int i = 0; i < totalFrames; i++)
   {
     // Clear old missile
-    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
-
+    Missile old_missile = missile; // Save old missile position
     if(missile.type == POWERED) {
       touchPoint = touchLocation(); // Touch X and Y are the opposite of the screen X Y axis so we use here X from touch as Y for screen!
       if (touchPoint.x > 0) {
@@ -323,10 +354,13 @@ void simulateMissileFlight()
     // Calculate rotated triangle points
     calculateMissileTriangle(missile.launchAngle);
 
-    // Update target position
-    updateTargetPosition(1.0 / framesPerSec);
+    // Update target position every 5 frames
+    if (i % 5 == 0) {
+      updateTargetPosition(5.0 / framesPerSec);
+    }
 
     // Draw missile (red triangle)
+    tft.fillTriangle(old_missile.x0, old_missile.y0, old_missile.x1, old_missile.y1, old_missile.x2, old_missile.y2, ILI9341_BLACK);
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
 
     if (outOfBounds()) {
@@ -339,6 +373,13 @@ void simulateMissileFlight()
       missile.hitTarget = true;
       break;
     }
+    if (hitObstacle()){
+      hitObstacleSound();
+      missile.hitObstacle = true; // Mark missile as hit obstacle
+      missile.hitTarget = false;
+      break;
+    }
+
     delay(1000 / framesPerSec);
   }
   Serial.println("Flight simulation ended");
@@ -361,24 +402,6 @@ TS_Point touchLocation() {
   return TS_Point();  // No touch detected
 }
 
-TS_Point touchLocation() {
-
-  if (ctp.touched()) {
-    TS_Point p = ctp.getPoint();
-    Serial.print("Touch at X: "); Serial.print(p.x);
-    Serial.print(", Y: "); Serial.println(p.y);
-    // Example: If touch detected, launch missile
-    if (!missile.launched) {
-      launchSound();
-      missile.launched = true;
-      simulateMissileFlight();
-    }
-    return p;  // Return touch point
-  }
-  return TS_Point();  // No touch detected
-}
-
-
 
 bool outOfBounds()
 {
@@ -392,6 +415,20 @@ bool hitTarget()
   float distance = sqrt(dx * dx + dy * dy);
 
   return distance <= target.radius;
+}
+
+bool hitObstacle() {
+  for (int i = 0; i < 4; i++) {
+    // Check if missile.x0, y0 is inside the obstacle rectangle
+    if (missile.x0 >= missile.obstacles[i].posX &&
+        missile.x0 <= missile.obstacles[i].posX + 15 &&
+        missile.y0 >= missile.obstacles[i].posY &&
+        missile.y0 <= missile.obstacles[i].posY + 15) {
+      missile.obstacles[i].hit = true;  // Mark obstacle as hit
+      return true;  // Missile hit an obstacle
+    }
+  }
+  return false;  // No obstacle hit
 }
 
 // Function to start launch
@@ -463,7 +500,7 @@ void loop()
         launchSound();
         Serial.println("Button Pressed! Launching Missile...");
         missile.launched = true;
-          simulateMissileFlight();
+        simulateMissileFlight();
       }
     }
   }

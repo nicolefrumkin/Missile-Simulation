@@ -1,7 +1,11 @@
 #define TARGET_BOX_X_MIN 220
 #define TARGET_BOX_X_MAX 295
 #define TARGET_BOX_Y_MIN 25
-#define TARGET_BOX_Y_MAX 100
+#define TARGET_BOX_Y_MAX 215
+#define OBSTACLE_BOX_X_MIN 150
+#define OBSTACLE_BOX_X_MAX 220
+#define OBSTACLE_BOX_Y_MIN 25
+#define OBSTACLE_BOX_Y_MAX 215
 #define BALLISTIC 0
 #define POWERED 1
 
@@ -11,6 +15,12 @@ typedef enum
   SLOW = 1,
   RANDOM = 2
 } TargetType;
+
+typedef struct Obstacle {
+  float posX;      // X coordinate
+  float posY;      // Y coordinate
+  bool hit;        // Whether the missile has hit the obstacle
+} Obstacle;
 
 typedef struct Missile
 {
@@ -32,6 +42,7 @@ typedef struct Missile
   int y1;
   int x2;
   int y2;
+  Obstacle obstacles[4] ;
 } Missile;
 
 typedef struct Target
@@ -59,3 +70,5 @@ void hitTargetSound();
 void missTargetSound();
 TS_Point touchLocation();
 void updateTargetPosition(float dt);
+void addObstacles();
+bool hitObstacle();
