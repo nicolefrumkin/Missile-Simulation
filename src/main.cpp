@@ -1,20 +1,25 @@
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
+#include "Adafruit_FT6206.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <functions.h>
 
-// screen:
-#define TFT_CS 5
-#define TFT_DC 2
-#define TFT_RST 4
-#define TFT_MOSI 23
-#define TFT_MISO 19
-#define TFT_SCLK 18
+
+//screen:
+#define TFT_CS     5
+#define TFT_DC     2
+#define TFT_RST    4
+#define TFT_MOSI   23
+#define TFT_MISO   19
+#define TFT_SCLK   18
 #define BUTTON_PIN 15
+#define TOUCH_SDA  21
+#define TOUCH_SCL  22
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+Adafruit_FT6206 ctp = Adafruit_FT6206();
 
 // wifi:
 #define WIFI_SSID "Wokwi-GUEST"
@@ -25,6 +30,9 @@ bool waiting_for_input_from_web = true; // Flag to indicate if we are waiting fo
 
 // speaker:
 #define SPEAKER_PIN 13
+
+//led
+#define LED_PIN 12
 
 Missile missile;
 Target target;
@@ -157,8 +165,12 @@ void handlingStartTFT()
 {
   tft.begin();
 
-  tft.setRotation(3);            // Optional: rotate for horizontal layout
-  tft.fillScreen(ILI9341_BLACK); // Clear screen
+  tft.setRotation(3);  // Optional: rotate for horizontal layout
+  tft.fillScreen(ILI9341_BLACK);  // Clear screen
+
+  if (!ctp.begin()) {
+    Serial.println("Couldn't start touchscreen");
+  }
 
   // First message
   tft.setCursor(55, 100);
@@ -225,6 +237,7 @@ void showStartSimulationScreen()
   tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
+
 void updateTargetPosition(float dt)
 {
   static float directionX = 1;
@@ -272,21 +285,40 @@ void simulateMissileFlight()
   float framesPerSec = 10;
   int totalFrames = travelTime * framesPerSec;
   float g = 2.8; // gravity in m/s^2, random number need to explain
+  TS_Point touchPoint;
 
   for (int i = 0; i < totalFrames; i++)
   {
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
-    tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLACK); // erase old target
 
-    missile.posX += missile.velX / framesPerSec; // Update x position
-    missile.posY += missile.velY / framesPerSec;
-    missile.velY += g / framesPerSec; // Gravity effect (9.8 m/s^2)
+    if(missile.type == POWERED) {
+      touchPoint = touchLocation(); // Touch X and Y are the opposite of the screen X Y axis so we use here X from touch as Y for screen!
+      if (touchPoint.x > 0) {
+        if(touchPoint.x > missile.y0) { // pressed under the missile
+          missile.velY += 20/framesPerSec; // randomly testing decreasing val
+        } else if (touchPoint.x < missile.y0) { // pressed above the missile
+          missile.velY -= 20/framesPerSec; // randomly testing increasin val
+        }
+        touchPoint = TS_Point(); // Reset touch point after handling
+        Serial.print("Missile Ylocation: ");
+        Serial.println(missile.posY);
+        Serial.print("Missile Y vel: ");
+        Serial.println(missile.velY);
+      }
+    }
+    //digitalWrite(LED_PIN, (i % 2 == 0) ? HIGH : LOW); // Blink LED every frame
+    // Blink LED every 5 iterations
+    if (i % 5 == 0) {
+      digitalWrite(LED_PIN, !digitalRead(LED_PIN));  // Toggle LED
+    }
 
-    // calculate new angle
-    // Serial.print("Missile angle: ");
-    // Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
-    missile.launchAngle = atan2(missile.velY, missile.velX);
+    missile.posX += missile.velX/framesPerSec; // Update x position
+    missile.posY += missile.velY/framesPerSec;
+    missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
+
+    //calculate new angle
+    missile.launchAngle = atan2(missile.velY,missile.velX);
 
     // Calculate rotated triangle points
     calculateMissileTriangle(missile.launchAngle);
@@ -297,13 +329,13 @@ void simulateMissileFlight()
     // Draw missile (red triangle)
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
 
-    if (outOfBounds())
-    {
+    if (outOfBounds()) {
+      missTargetSound();
       missile.hitTarget = false;
       break;
-    }
-    if (hitTarget())
-    {
+    }  
+    if (hitTarget()) {
+      hitTargetSound();
       missile.hitTarget = true;
       break;
     }
@@ -311,6 +343,42 @@ void simulateMissileFlight()
   }
   Serial.println("Flight simulation ended");
 }
+
+TS_Point touchLocation() {
+
+  if (ctp.touched()) {
+    TS_Point p = ctp.getPoint();
+    Serial.print("Touch at X: "); Serial.print(p.x);
+    Serial.print(", Y: "); Serial.println(p.y);
+    // Example: If touch detected, launch missile
+    if (!missile.launched) {
+      launchSound();
+      missile.launched = true;
+      simulateMissileFlight();
+    }
+    return p;  // Return touch point
+  }
+  return TS_Point();  // No touch detected
+}
+
+TS_Point touchLocation() {
+
+  if (ctp.touched()) {
+    TS_Point p = ctp.getPoint();
+    Serial.print("Touch at X: "); Serial.print(p.x);
+    Serial.print(", Y: "); Serial.println(p.y);
+    // Example: If touch detected, launch missile
+    if (!missile.launched) {
+      launchSound();
+      missile.launched = true;
+      simulateMissileFlight();
+    }
+    return p;  // Return touch point
+  }
+  return TS_Point();  // No touch detected
+}
+
+
 
 bool outOfBounds()
 {
@@ -349,11 +417,10 @@ void hitTargetSound()
 }
 
 // Function for missing target
-void missTargetSound()
-{
-  tone(SPEAKER_PIN, 400, 200);
-  tone(SPEAKER_PIN, 300, 200);
-  tone(SPEAKER_PIN, 200, 200);
+void missTargetSound() {
+  tone(SPEAKER_PIN, 400,150);
+  tone(SPEAKER_PIN, 300,200);
+  tone(SPEAKER_PIN, 200,200);
 }
 
 void setup()
@@ -361,7 +428,9 @@ void setup()
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  digitalWrite(LED_PIN, LOW);  // Turn off LED initially
   handlingStartTFT();
   handlingWIFI();
   while (waiting_for_input_from_web)
@@ -369,6 +438,7 @@ void setup()
     delay(100);
     server.handleClient();
   }
+  digitalWrite(LED_PIN, HIGH);  // Turn on LED after reciecing web input
   showStartSimulationScreen();
   delay(2000); // Show simulation screen for 2 seconds
 }
@@ -393,7 +463,7 @@ void loop()
         launchSound();
         Serial.println("Button Pressed! Launching Missile...");
         missile.launched = true;
-        simulateMissileFlight();
+          simulateMissileFlight();
       }
     }
   }

@@ -57,4 +57,5 @@ void launchSound();
 void hitObstacleSound();
 void hitTargetSound();
 void missTargetSound();
+TS_Point touchLocation();
 void updateTargetPosition(float dt);
