@@ -1,4 +1,4 @@
-1. powered missile support
+1. powered missile support - done!
     user is controlling by tapping on screen
     using touch screen (maybe need to add connections)
 
@@ -12,12 +12,12 @@
     ramdom moving (inside a small imaginary box)
 
 4. unique Sound for 
-    launch
-    hit obstacle
-    hit target
-    miss target
+    launch - done
+    hit obstacle - todo! add to obstacles check
+    hit target - done
+    miss target -done
 
-5. indication led 
+5. indication led - done!
     OFF on startup
     ON after recieving configuration
     blinking when flying

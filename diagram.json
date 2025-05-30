@@ -25,13 +25,21 @@
       "top": 159.8,
       "left": 153.6,
       "attrs": { "color": "green", "xray": "1", "bounce": "0" }
+    },
+    { "type": "wokwi-led", "id": "led1", "top": 140.4, "left": -217, "attrs": { "color": "red" } },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 176.75,
+      "left": -76.8,
+      "attrs": { "value": "1000" }
     }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
     [ "lcd1:VCC", "esp:5V", "red", [ "h19.2", "v105.6" ] ],
-    [ "lcd1:GND", "esp:GND.1", "black", [ "h28.8", "v67.2" ] ],
+    [ "lcd1:GND", "esp:GND.1", "black", [ "h28.8", "v28.8", "h96", "v38.4" ] ],
     [ "lcd1:MISO", "esp:19", "cyan", [ "h288", "v76.8" ] ],
     [ "lcd1:MOSI", "esp:23", "green", [ "h240", "v-9.6" ] ],
     [ "lcd1:CS", "esp:5", "green", [ "h38.4", "v163.2", "h240", "v-124.8" ] ],
@@ -44,7 +52,10 @@
     [ "btn1:1.r", "esp:GND.2", "green", [ "v0" ] ],
     [ "esp:15", "btn1:2.l", "green", [ "v0", "h38.4", "v19.2" ] ],
     [ "lcd1:SCL", "esp:22", "magenta", [ "h172.8", "v-9.6", "h124.8", "v48" ] ],
-    [ "lcd1:SDA", "esp:21", "yellow", [ "h163.2", "v-9.6", "h144", "v86.4" ] ]
+    [ "lcd1:SDA", "esp:21", "yellow", [ "h163.2", "v-9.6", "h144", "v86.4" ] ],
+    [ "led1:A", "r1:1", "green", [ "v0" ] ],
+    [ "r1:2", "esp:12", "green", [ "v-38.4", "h-1.2" ] ],
+    [ "esp:GND.1", "led1:C", "black", [ "h-86.25", "v38.4", "h-124.8" ] ]
   ],
   "dependencies": {}
 }

@@ -31,6 +31,9 @@ bool waiting_for_input_from_web = true;  // Flag to indicate if we are waiting f
 //speaker:
 #define SPEAKER_PIN 13
 
+//led
+#define LED_PIN 12
+
 Missile missile;
 Target target;
 unsigned long lastDebounceTime = 0;
@@ -201,50 +204,8 @@ void showStartSimulationScreen() {
   tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
+
 void simulateMissileFlight() {
-  float dx = target.posX - missile.posX;
-
-  missile.velX = map(missile.velX, 1, 100, 10, 32);  // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
-  int travelTime = map(missile.velX, 1, 100, 30, 10); // travel time in seconds
-  missile.velY = missile.velX * tan(missile.launchAngle); // vertical velocity based on angle
-  
-  float framesPerSec = 10;
-  int totalFrames = travelTime*framesPerSec;
-  float g = 2.8; // gravity in m/s^2, random number need to explain
-
-  for (int i = 0; i < totalFrames; i++) {
-    // Clear old missile
-    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
-
-    missile.posX += missile.velX/framesPerSec; // Update x position
-    missile.posY += missile.velY/framesPerSec;
-    missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
-    
-    //calculate new angle
-    Serial.print("Missile angle: ");
-    Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
-    missile.launchAngle = atan2(missile.velY,missile.velX);
-
-    // Calculate rotated triangle points
-    calculateMissileTriangle(missile.launchAngle);
-
-    // Draw missile (red triangle)
-    tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
-    delay(1000/framesPerSec);
-
-    if (outOfBounds()) {
-      missile.hitTarget = false;
-      break;
-    }  
-    if (hitTarget()) {
-      missile.hitTarget = true;
-      break;
-    }
-  }
-  Serial.println("Flight simulation ended");
-}
-
-void simulatePoweredMissileFlight() {
   float dx = target.posX - missile.posX;
 
   missile.velX = map(missile.velX, 1, 100, 10, 32);  // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
@@ -260,18 +221,25 @@ void simulatePoweredMissileFlight() {
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
 
-    touchPoint = touchLocation(); // Touch X and Y are the opposite of the screen X Y axis so we use here X from touch as Y for screen!
-    if (touchPoint.x > 0) {
-      if(touchPoint.x > missile.y0) { // pressed under the missile
-        missile.velY += 20/framesPerSec; // randomly testing decreasing val
-      } else if (touchPoint.x < missile.y0) { // pressed above the missile
-        missile.velY -= 20/framesPerSec; // randomly testing increasin val
+    if(missile.type == POWERED) {
+      touchPoint = touchLocation(); // Touch X and Y are the opposite of the screen X Y axis so we use here X from touch as Y for screen!
+      if (touchPoint.x > 0) {
+        if(touchPoint.x > missile.y0) { // pressed under the missile
+          missile.velY += 20/framesPerSec; // randomly testing decreasing val
+        } else if (touchPoint.x < missile.y0) { // pressed above the missile
+          missile.velY -= 20/framesPerSec; // randomly testing increasin val
+        }
+        touchPoint = TS_Point(); // Reset touch point after handling
+        Serial.print("Missile Ylocation: ");
+        Serial.println(missile.posY);
+        Serial.print("Missile Y vel: ");
+        Serial.println(missile.velY);
       }
-      touchPoint = TS_Point(); // Reset touch point after handling
-      Serial.print("Missile Ylocation: ");
-      Serial.println(missile.posY);
-      Serial.print("Missile Y vel: ");
-      Serial.println(missile.velY);
+    }
+    //digitalWrite(LED_PIN, (i % 2 == 0) ? HIGH : LOW); // Blink LED every frame
+    // Blink LED every 5 iterations
+    if (i % 5 == 0) {
+      digitalWrite(LED_PIN, !digitalRead(LED_PIN));  // Toggle LED
     }
 
     missile.posX += missile.velX/framesPerSec; // Update x position
@@ -279,8 +247,6 @@ void simulatePoweredMissileFlight() {
     missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
 
     //calculate new angle
-    //Serial.print("Missile angle: ");
-    //Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
     missile.launchAngle = atan2(missile.velY,missile.velX);
 
     // Calculate rotated triangle points
@@ -291,17 +257,18 @@ void simulatePoweredMissileFlight() {
     delay(1000/framesPerSec);
 
     if (outOfBounds()) {
+      missTargetSound();
       missile.hitTarget = false;
       break;
     }  
     if (hitTarget()) {
+      hitTargetSound();
       missile.hitTarget = true;
       break;
     }
   }
   Serial.println("Flight simulation ended");
 }
-
 
 TS_Point touchLocation() {
 
@@ -353,7 +320,7 @@ void hitTargetSound() {
 
 // Function for missing target
 void missTargetSound() {
-  tone(SPEAKER_PIN, 400,200);
+  tone(SPEAKER_PIN, 400,150);
   tone(SPEAKER_PIN, 300,200);
   tone(SPEAKER_PIN, 200,200);
 }
@@ -362,13 +329,16 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  digitalWrite(LED_PIN, LOW);  // Turn off LED initially
   handlingStartTFT();
   handlingWIFI();
   while(waiting_for_input_from_web) { // Wait for web input
     delay(100);
     server.handleClient(); 
   }
+  digitalWrite(LED_PIN, HIGH);  // Turn on LED after reciecing web input
   showStartSimulationScreen();
   delay(2000);  // Show simulation screen for 2 seconds
 }
@@ -388,11 +358,7 @@ void loop() {
         launchSound();
         Serial.println("Button Pressed! Launching Missile...");
         missile.launched = true;
-        if(missile.type == POWERED) {
-          simulatePoweredMissileFlight();
-        } else if(missile.type == BALLISTIC) {
-          simulateMissileFlight();
-        }
+        simulateMissileFlight();
       }
     }
   }
