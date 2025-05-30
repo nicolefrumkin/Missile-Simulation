@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../../OneDrive/Desktop/ESP32 HTTP Server"
+		},
+		{
+			"name": "Missile-Simulation",
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"cmath": "cpp",
+			"array": "cpp",
+			"string_view": "cpp",
+			"initializer_list": "cpp",
+			"utility": "cpp"
+		}
+	}
+}

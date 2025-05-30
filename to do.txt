@@ -1,23 +1,23 @@
-1. powered missile support
+1. powered missile support // yaron
     user is controlling by tapping on screen
     using touch screen (maybe need to add connections)
 
-2. obstacles 
+2. obstacles // nicole
     fixed position obstacles
     random position obstacles (per simulation)
 
-3. moving target
+3. moving target // nicole
     static - done
     slow moving (up and down)
     ramdom moving (inside a small imaginary box)
 
-4. unique Sound for 
+4. unique Sound for // yaron
     launch
     hit obstacle
     hit target
     miss target
 
-5. indication led 
+5. indication led // nicole
     OFF on startup
     ON after recieving configuration
     blinking when flying

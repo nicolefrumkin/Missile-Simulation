@@ -6,38 +6,40 @@
 #include <WebServer.h>
 #include <functions.h>
 
-//screen:
-#define TFT_CS     5
-#define TFT_DC     2
-#define TFT_RST    4
-#define TFT_MOSI   23
-#define TFT_MISO   19
-#define TFT_SCLK   18
+// screen:
+#define TFT_CS 5
+#define TFT_DC 2
+#define TFT_RST 4
+#define TFT_MOSI 23
+#define TFT_MISO 19
+#define TFT_SCLK 18
 #define BUTTON_PIN 15
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
-//wifi:
+// wifi:
 #define WIFI_SSID "Wokwi-GUEST"
 #define WIFI_PASSWORD ""
 #define WIFI_CHANNEL 6
-WebServer server(80);  // HTTP server on port 80
-bool waiting_for_input_from_web = true;  // Flag to indicate if we are waiting for input from the web interface
+WebServer server(80);                   // HTTP server on port 80
+bool waiting_for_input_from_web = true; // Flag to indicate if we are waiting for input from the web interface
 
-//speaker:
+// speaker:
 #define SPEAKER_PIN 13
 
 Missile missile;
 Target target;
 unsigned long lastDebounceTime = 0;
-unsigned long debounceDelay = 50;  // milliseconds
-bool buttonState = HIGH;            // Current state
-bool lastButtonState = HIGH;        // Previous state
-int MISSILE_SIZE = 20;  // Size of the missile triangle
+unsigned long debounceDelay = 50; // milliseconds
+bool buttonState = HIGH;          // Current state
+bool lastButtonState = HIGH;      // Previous state
+int MISSILE_SIZE = 20;            // Size of the missile triangle
 
-void handlingWIFI(){
+void handlingWIFI()
+{
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL);
   Serial.print("Connecting to WiFi...");
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
@@ -45,14 +47,15 @@ void handlingWIFI(){
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  server.on("/", handleRoot);  // Set up HTML handler
+  server.on("/", handleRoot); // Set up HTML handler
   server.begin();
   Serial.println("Please open the following URL in your browser: http://localhost:8180/");
   Serial.println("And provide input parameters to the server.");
   server.on("/upload", handleUpload);
 }
 
-void handleRoot() {
+void handleRoot()
+{
   server.send(200, "text/html", R"rawliteral(
     <!DOCTYPE html>
     <html>
@@ -94,71 +97,100 @@ void handleRoot() {
   )rawliteral");
 }
 
-void handleUpload() {
-  String type = server.arg("type");
+void handleUpload()
+{
+  String missile_type = server.arg("missile_type");
   String speed = server.arg("speed");
   String angle = server.arg("angle");
   String route = server.arg("route");
-  String target = server.arg("target");
+  String target_type = server.arg("target");
 
   // Print values to serial for now
   Serial.println("=== Configuration Uploaded ===");
-  Serial.println("Type: " + type);
+  Serial.println("Type: " + missile_type);
   Serial.println("Speed: " + speed);
   Serial.println("Angle: " + angle);
   Serial.println("Route: " + route);
-  Serial.println("Target: " + target);
+  Serial.println("Target: " + target_type);
 
-  //setting missile parameters
-  if (type == "ballistic") {
+  // setting missile parameters
+  if (missile_type == "ballistic")
+  {
     missile.type = BALLISTIC;
-  } else if (type == "powered") {
+  }
+  else if (missile_type == "powered")
+  {
     missile.type = POWERED;
   }
+
+  // setting target parameters
+  if (target_type == "static")
+  {
+    target.type = STATIC;
+  }
+  else if (target_type == "slow")
+  {
+    target.type = SLOW;
+  }
+  else if (target_type == "random")
+  {
+    target.type = RANDOM;
+  }
+
   missile.launchSpeed = speed.toInt();
   missile.launchAngle = angle.toInt();
-  missile.posX = 0;  // Initial position
-  missile.posY = 0;  // Initial position
+  missile.posX = 0; // Initial position
+  missile.posY = 0; // Initial position
   missile.velX = missile.launchSpeed * cos(missile.launchAngle * PI / 180);
   missile.velY = missile.launchSpeed * sin(missile.launchAngle * PI / 180);
-  missile.launched = false;  // Not launched yet
-  missile.hitTarget = false;  // Not hit yet
-  missile.hitObstacle = false;  // Not hit yet
-  missile.launchTime = 0;  // No launch time yet
+  missile.launched = false;    // Not launched yet
+  missile.hitTarget = false;   // Not hit yet
+  missile.hitObstacle = false; // Not hit yet
+  missile.launchTime = 0;      // No launch time yet
 
   // Turn on LED if needed
-  waiting_for_input_from_web = false;  // Set flag to false to indicate we have received input
+  waiting_for_input_from_web = false; // Set flag to false to indicate we have received input
   server.send(200, "text/html", "<h2>Configuration Received! You may now launch the missile.</h2>");
 }
 
-void handlingStartTFT(){
+void handlingStartTFT()
+{
   tft.begin();
 
-  tft.setRotation(3);  // Optional: rotate for horizontal layout
-  tft.fillScreen(ILI9341_BLACK);  // Clear screen
+  tft.setRotation(3);            // Optional: rotate for horizontal layout
+  tft.fillScreen(ILI9341_BLACK); // Clear screen
 
   // First message
-  tft.setCursor(10, 50);  // X=10, Y=50
-  tft.setTextColor(ILI9341_RED);
+  tft.setCursor(55, 100);
+  tft.setTextColor(ILI9341_WHITE);
   tft.setTextSize(2);
-  tft.print("Hello, pending simulation configuration from WEB");
+  tft.print("Pending simulation");
+  tft.setCursor(35, 120);
+  tft.print("configuration from WEB");
 }
 
-void handlingEndTFT(bool hit){
-  tft.fillScreen(ILI9341_BLACK);  // Clear screen
+void handlingEndTFT(bool hit)
+{
+  tft.fillScreen(ILI9341_BLACK); // Clear screen
 
   // First message
-  tft.setCursor(10, 50);  // X=10, Y=50
-  tft.setTextColor(ILI9341_RED);
   tft.setTextSize(2);
-  if (hit) {
+  if (hit)
+  {
+    tft.setCursor(60, 100);
+    tft.setTextColor(ILI9341_GREEN);
     tft.print("Missile hit target!");
-  } else {
+  }
+  else
+  {
+    tft.setCursor(40, 100);
+    tft.setTextColor(ILI9341_RED);
     tft.print("Missile missed target!");
   }
   delay(5000);
 }
-void calculateMissileTriangle(float angle) {
+void calculateMissileTriangle(float angle)
+{
   missile.x0 = missile.posX + MISSILE_SIZE * cos(angle);
   missile.y0 = missile.posY + MISSILE_SIZE * sin(angle);
 
@@ -169,12 +201,13 @@ void calculateMissileTriangle(float angle) {
   missile.y2 = missile.posY + MISSILE_SIZE * sin(angle - radians(150));
 }
 
-void showStartSimulationScreen() {
+void showStartSimulationScreen()
+{
   tft.fillScreen(ILI9341_BLACK);
 
   // Missile position
-  missile.posX = MISSILE_SIZE;                     // Bottom-left corner X
-  missile.posY = tft.height() - MISSILE_SIZE;      // Bottom-left corner Y
+  missile.posX = MISSILE_SIZE;                // Bottom-left corner X
+  missile.posY = tft.height() - MISSILE_SIZE; // Bottom-left corner Y
 
   // Missile angle (convert degrees to radians)
   missile.launchAngle = radians(-missile.launchAngle);
@@ -187,133 +220,191 @@ void showStartSimulationScreen() {
 
   // Target (blue circle)
   target.radius = 25;
-  target.posX = tft.width() - target.radius;
+  target.posX = tft.width() - target.radius - 5;
   target.posY = target.radius;
   tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
 }
 
-void simulateMissileFlight() {
+void updateTargetPosition(float dt)
+{
+  static float directionX = 1;
+  static float directionY = 1;
+
+  if (target.type == STATIC)
+  {
+    return;
+  }
+
+  if (target.type == SLOW)
+  {
+    target.posX += directionX * 30 * dt; // slow horizontal movement
+    if (target.posX <= TARGET_BOX_X_MIN || target.posX >= TARGET_BOX_X_MAX)
+    {
+      directionX *= -1;
+    }
+  }
+
+  if (target.type == RANDOM)
+  {
+    target.posX += random(-75, 75) * dt;
+    target.posY += random(-75, 75) * dt;
+
+    if (target.posX < TARGET_BOX_X_MIN)
+      target.posX = TARGET_BOX_X_MIN;
+    if (target.posX > TARGET_BOX_X_MAX)
+      target.posX = TARGET_BOX_X_MAX;
+    if (target.posY < TARGET_BOX_Y_MIN)
+      target.posY = TARGET_BOX_Y_MIN;
+    if (target.posY > TARGET_BOX_Y_MAX)
+      target.posY = TARGET_BOX_Y_MAX;
+  }
+  tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLUE);
+}
+
+void simulateMissileFlight()
+{
   float dx = target.posX - missile.posX;
 
-  missile.velX = map(missile.velX, 1, 100, 10, 32);  // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
-  int travelTime = map(missile.velX, 1, 100, 30, 10); // travel time in seconds
+  missile.velX = map(missile.velX, 1, 100, 10, 32);       // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
+  int travelTime = map(missile.velX, 1, 100, 30, 10);     // travel time in seconds
   missile.velY = missile.velX * tan(missile.launchAngle); // vertical velocity based on angle
-  
+
   float framesPerSec = 10;
-  int totalFrames = travelTime*framesPerSec;
+  int totalFrames = travelTime * framesPerSec;
   float g = 2.8; // gravity in m/s^2, random number need to explain
 
-  for (int i = 0; i < totalFrames; i++) {
+  for (int i = 0; i < totalFrames; i++)
+  {
     // Clear old missile
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_BLACK);
+    tft.fillCircle(target.posX, target.posY, target.radius, ILI9341_BLACK); // erase old target
 
-    missile.posX += missile.velX/framesPerSec; // Update x position
-    missile.posY += missile.velY/framesPerSec;
-    missile.velY += g/framesPerSec; // Gravity effect (9.8 m/s^2)
-    
-    //calculate new angle
-    Serial.print("Missile angle: ");
-    Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
-    missile.launchAngle = atan2(missile.velY,missile.velX);
+    missile.posX += missile.velX / framesPerSec; // Update x position
+    missile.posY += missile.velY / framesPerSec;
+    missile.velY += g / framesPerSec; // Gravity effect (9.8 m/s^2)
+
+    // calculate new angle
+    // Serial.print("Missile angle: ");
+    // Serial.println(missile.launchAngle * 180 / PI); // Convert radians to degrees for display
+    missile.launchAngle = atan2(missile.velY, missile.velX);
 
     // Calculate rotated triangle points
     calculateMissileTriangle(missile.launchAngle);
 
+    // Update target position
+    updateTargetPosition(1.0 / framesPerSec);
+
     // Draw missile (red triangle)
     tft.fillTriangle(missile.x0, missile.y0, missile.x1, missile.y1, missile.x2, missile.y2, ILI9341_RED);
-    delay(1000/framesPerSec);
 
-    if (outOfBounds()) {
+    if (outOfBounds())
+    {
       missile.hitTarget = false;
       break;
-    }  
-    if (hitTarget()) {
+    }
+    if (hitTarget())
+    {
       missile.hitTarget = true;
       break;
     }
+    delay(1000 / framesPerSec);
   }
   Serial.println("Flight simulation ended");
 }
 
-bool outOfBounds() {
+bool outOfBounds()
+{
   return missile.x0 < 0 || missile.x0 >= 320 || missile.y0 < 0 || missile.y0 >= 240;
 }
 
-bool hitTarget() {
-  float dx = missile.x0 - target.posX;
-  float dy = missile.y0 - target.posY;
+bool hitTarget()
+{
+  float dx = target.posX - missile.x0; // Adjust for target radius
+  float dy = target.posY - missile.y0;
   float distance = sqrt(dx * dx + dy * dy);
 
-  return distance <= target.radius;  
+  return distance <= target.radius;
 }
 
 // Function to start launch
-void launchSound() {
-  tone(SPEAKER_PIN, 350,100);
-  tone(SPEAKER_PIN, 500,250);
+void launchSound()
+{
+  tone(SPEAKER_PIN, 350, 100);
+  tone(SPEAKER_PIN, 500, 250);
 }
 
 // Function for hitting obstacle
-void hitObstacleSound() {
-  tone(SPEAKER_PIN, 500,250);
-  tone(SPEAKER_PIN, 350,100);
+void hitObstacleSound()
+{
+  tone(SPEAKER_PIN, 500, 250);
+  tone(SPEAKER_PIN, 350, 100);
 }
 
 // Function for hitting target
-void hitTargetSound() {
-  tone(SPEAKER_PIN, 350,250);
-  tone(SPEAKER_PIN, 425,200);
-  tone(SPEAKER_PIN, 500,150);
+void hitTargetSound()
+{
+  tone(SPEAKER_PIN, 350, 250);
+  tone(SPEAKER_PIN, 425, 200);
+  tone(SPEAKER_PIN, 500, 150);
 }
 
 // Function for missing target
-void missTargetSound() {
-  tone(SPEAKER_PIN, 400,200);
-  tone(SPEAKER_PIN, 300,200);
-  tone(SPEAKER_PIN, 200,200);
+void missTargetSound()
+{
+  tone(SPEAKER_PIN, 400, 200);
+  tone(SPEAKER_PIN, 300, 200);
+  tone(SPEAKER_PIN, 200, 200);
 }
 
-void setup() {
+void setup()
+{
   // put your setup code here, to run once:
   Serial.begin(115200);
   pinMode(SPEAKER_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   handlingStartTFT();
   handlingWIFI();
-  while(waiting_for_input_from_web) { // Wait for web input
+  while (waiting_for_input_from_web)
+  { // Wait for web input
     delay(100);
-    server.handleClient(); 
+    server.handleClient();
   }
   showStartSimulationScreen();
-  delay(2000);  // Show simulation screen for 2 seconds
+  delay(2000); // Show simulation screen for 2 seconds
 }
 
-void loop() {
+void loop()
+{
   // put your main code here, to run repeatedly:
   int reading = digitalRead(BUTTON_PIN);
 
-  if (reading != lastButtonState) {
-    lastDebounceTime = millis();  // reset debounce timer
+  if (reading != lastButtonState)
+  {
+    lastDebounceTime = millis(); // reset debounce timer
   }
 
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != buttonState) {
-      buttonState = reading;  // update stable state
-      if(buttonState== LOW && !missile.launched) {  // Button pressed
+  if ((millis() - lastDebounceTime) > debounceDelay)
+  {
+    if (reading != buttonState)
+    {
+      buttonState = reading; // update stable state
+      if (buttonState == LOW && !missile.launched)
+      { // Button pressed
         launchSound();
         Serial.println("Button Pressed! Launching Missile...");
         missile.launched = true;
-      simulateMissileFlight();
+        simulateMissileFlight();
       }
     }
   }
   lastButtonState = reading;
-  
-  if (missile.launched) {
-    handlingEndTFT(missile.hitTarget); 
-    missile.launched = false; 
+
+  if (missile.launched)
+  {
+    handlingEndTFT(missile.hitTarget);
+    missile.launched = false;
     waiting_for_input_from_web = true;
-    delay(3000);  // Wait for 3 seconds before next iteration
+    delay(3000); // Wait for 3 seconds before next iteration
     setup();
   }
 }
