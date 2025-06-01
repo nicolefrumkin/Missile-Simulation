@@ -8,6 +8,7 @@
 #define OBSTACLE_BOX_Y_MAX 215
 #define BALLISTIC 0
 #define POWERED 1
+#define NUMBER_OF_OBSTACLES 4
 
 typedef enum
 {

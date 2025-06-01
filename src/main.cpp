@@ -200,7 +200,7 @@ void handlingEndTFT(bool hit)
       tft.setTextColor(ILI9341_YELLOW);
       tft.print("Missile hit obstacle!");
     } else {
-      tft.setCursor(60, 100);
+      tft.setCursor(55, 100);
       tft.setTextColor(ILI9341_RED);
       tft.print("Missile missed target!");
     }
@@ -251,7 +251,7 @@ void addObstacles() {
   if (route == "none") {
     return; // No random obstacles
   }
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < NUMBER_OF_OBSTACLES; i++) {
      if(route == "fixed") {
       // Fixed obstacles
       missile.obstacles[i].posX = OBSTACLE_BOX_X_MIN + i * 10; // Fixed positions
@@ -310,13 +310,13 @@ void simulateMissileFlight()
 {
   float dx = target.posX - missile.posX;
 
-  missile.velX = map(missile.velX, 1, 100, 10, 32);       // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec **fixme
+  missile.velX = map(missile.velX, 1, 100, 10, 32);       // speed in m/s for 320 width screen. 10 gives 30 sec, 32 gives 10 sec
   int travelTime = map(missile.velX, 1, 100, 30, 10);     // travel time in seconds
   missile.velY = missile.velX * tan(missile.launchAngle); // vertical velocity based on angle
 
   float framesPerSec = 10;
   int totalFrames = travelTime * framesPerSec;
-  float g = 2.8; // gravity in m/s^2, random number need to explain
+  float g = 2.8; // gravity in m/s^2, adjustet for screen size and flight time
   TS_Point touchPoint;
 
   for (int i = 0; i < totalFrames; i++)
@@ -332,14 +332,15 @@ void simulateMissileFlight()
           missile.velY -= 20/framesPerSec; // randomly testing increasin val
         }
         touchPoint = TS_Point(); // Reset touch point after handling
-        Serial.print("Missile Ylocation: ");
-        Serial.println(missile.posY);
-        Serial.print("Missile Y vel: ");
-        Serial.println(missile.velY);
+        // debug prints
+        // Serial.print("Missile Ylocation: ");
+        // Serial.println(missile.posY);
+        // Serial.print("Missile Y vel: ");
+        // Serial.println(missile.velY);
       }
     }
     //digitalWrite(LED_PIN, (i % 2 == 0) ? HIGH : LOW); // Blink LED every frame
-    // Blink LED every 5 iterations
+    // Blink LED every 5 frames
     if (i % 5 == 0) {
       digitalWrite(LED_PIN, !digitalRead(LED_PIN));  // Toggle LED
     }
@@ -389,8 +390,9 @@ TS_Point touchLocation() {
 
   if (ctp.touched()) {
     TS_Point p = ctp.getPoint();
-    Serial.print("Touch at X: "); Serial.print(p.x);
-    Serial.print(", Y: "); Serial.println(p.y);
+    // prints for debug
+    //Serial.print("Touch at X: "); Serial.print(p.x);
+    //Serial.print(", Y: "); Serial.println(p.y);
     // Example: If touch detected, launch missile
     if (!missile.launched) {
       launchSound();
